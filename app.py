@@ -27,8 +27,6 @@ def load_models():
     global df, tfidf, tfidf_matrix, cosine_sim, indices, models_initialized
     try:
         # Define base path for models. Assumes models are in the same directory as app.py
-        # If your models are in a subfolder (e.g., 'data/'), change this:
-        # base_path = os.path.join(os.path.dirname(__file__), 'data')
         base_path = os.path.dirname(__file__) # Path to the directory where app.py resides
 
         # Load the DataFrame
@@ -234,12 +232,9 @@ def get_popular_movies():
     return jsonify({'movies': processed_movies}), 200
 
 
-# Run the Flask app
-if __name__ == '__main__':
-    # Call load_models() when the app starts.
-    # This will attempt to load models and set models_initialized flag.
-    load_models()
-    # Gunicorn will typically handle running the Flask app.
-    # The app.run() is mainly for local development.
-    # For Render, the 'gunicorn app:app' command handles this.
-    # app.run(debug=True, host='0.0.0.0', port=os.environ.get('PORT', 5000)) # Use Render's PORT env var
+# Call load_models() directly when the module is imported by Gunicorn
+load_models()
+
+# The app.run() is mainly for local development and should be commented out or removed for Gunicorn deployment
+# if __name__ == '__main__':
+#     app.run(debug=True, host='0.0.0.0', port=os.environ.get('PORT', 5000))
