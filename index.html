@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Recommender - Hotstar Style</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+            color: #e2e8f0; 
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .container-padding {
+            padding: 1rem; 
+        }
+        @media (min-width: 768px) {
+            .container-padding {
+                padding: 2rem; 
+            }
+        }
+        #recommendations-list::-webkit-scrollbar,
+        #popular-movies-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #recommendations-list::-webkit-scrollbar-track,
+        #popular-movies-list::-webkit-scrollbar-track {
+            background: #1a202c; 
+            border-radius: 10px;
+        }
+        #recommendations-list::-webkit-scrollbar-thumb,
+        #popular-movies-list::-webkit-scrollbar-thumb {
+            background: #4a5568; 
+            border-radius: 10px;
+        }
+        #recommendations-list::-webkit-scrollbar-thumb:hover,
+        #popular-movies-list::-webkit-scrollbar-thumb:hover {
+            background: #636b77; 
+        }
+
+        input[list]::-webkit-calendar-picker-indicator {
+            display: none !important;
+        }
+
+        .movie-card-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            padding: 1rem;
+            text-align: center;
+        }
+        .movie-card:hover .movie-card-overlay {
+            opacity: 1;
+        }
+
+        /* Modal specific styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #1a202c;
+            border-radius: 0.75rem;
+            padding: 2rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .modal-close-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #e2e8f0;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="flex flex-col">
+    <header class="bg-gray-900 p-4 shadow-lg flex justify-between items-center">
+        <div class="text-2xl font-bold text-indigo-500">MovieRecommender</div>
+        <nav>
+            <ul class="flex space-x-4">
+                <li><a href="#" id="nav-home" class="text-gray-300 hover:text-white transition-colors">Home</a></li>
+                <li><a href="#" id="nav-movies" class="text-gray-300 hover:text-white transition-colors">Movies</a></li>
+                <li><a href="#" id="nav-tvshows" class="text-gray-300 hover:text-white transition-colors">TV Shows</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="flex-grow container-padding mx-auto w-full max-w-7xl">
+        <section id="hero-section" class="relative bg-gray-900 rounded-lg shadow-xl overflow-hidden mb-8 h-64 md:h-96 flex items-center justify-center">
+            <img id="hero-banner-image" src="https://placehold.co/1200x500/1e293b/a78bfa?text=Loading+Featured+Movie..." alt="Featured Movie" class="absolute inset-0 w-full h-full object-cover opacity-60">
+            <div class="relative z-10 text-center p-4">
+                <h2 id="hero-banner-title" class="text-3xl md:text-5xl font-extrabold text-white drop-shadow-lg">Discover Your Next Favorite Movie</h2>
+                <p id="hero-banner-tagline" class="text-lg md:text-xl text-gray-200 mt-2 drop-shadow-md">Personalized recommendations and endless entertainment.</p>
+            </div>
+        </section>
+
+        <section id="search-section" class="bg-gray-800 p-6 rounded-lg shadow-xl mb-8">
+            <h2 class="text-2xl font-semibold text-indigo-300 mb-4">Find Your Movie</h2>
+            <div class="flex flex-col md:flex-row gap-4 items-end">
+                <div class="flex-grow w-full">
+                    <label for="movie-title" class="block text-gray-300 text-sm font-bold mb-2">
+                        Enter Movie Title:
+                    </label>
+                    <input
+                        type="text"
+                        id="movie-title"
+                        list="movie-suggestions"
+                        placeholder="e.g., Inception, Interstellar"
+                        class="shadow appearance-none border border-gray-700 rounded-lg w-full py-3 px-4 text-gray-100 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-700"
+                    >
+                    <datalist id="movie-suggestions"></datalist>
+                </div>
+                <button
+                    id="get-recommendations"
+                    class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:scale-105 whitespace-nowrap"
+                >
+                    Get Recommendations
+                </button>
+            </div>
+            <div id="loading-indicator" class="text-center text-indigo-300 mt-4 hidden">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+                <p class="mt-2">Loading...</p>
+            </div>
+        </section>
+
+        <section id="movie-details-output" class="bg-gray-800 p-6 rounded-lg shadow-xl mb-8 hidden">
+            <h2 class="text-2xl font-semibold text-indigo-300 mb-4">Selected Movie Details:</h2>
+            <div id="selected-movie-card" class="bg-gray-700 p-4 rounded-lg shadow-md flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-4">
+                <img id="movie-poster" src="https://placehold.co/150x225/333/FFF?text=No+Poster" alt="Movie Poster" class="w-32 h-48 rounded-lg shadow-lg flex-shrink-0 object-cover">
+                <div class="flex-grow">
+                    <h3 id="movie-detail-title" class="text-2xl font-bold text-indigo-200"></h3>
+                    <p id="movie-detail-tagline" class="text-gray-400 text-sm italic mb-2"></p>
+                    <p id="movie-detail-overview" class="text-gray-300 text-base"></p>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <span id="movie-detail-vote" class="bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded-full flex items-center gap-1">
+                            <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.381-1.81.588-1.81h3.462a1 1 0 00.95-.69l1.07-3.292z"></path></svg>
+                            <span></span>
+                        </span>
+                        <span id="movie-detail-popularity" class="bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded-full"></span>
+                        <span id="movie-detail-genres" class="bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded-full"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="recommendations-output" class="bg-gray-800 p-6 rounded-lg shadow-xl">
+            <h2 class="text-2xl font-semibold text-indigo-300 mb-4">Recommended Movies:</h2>
+            <div id="recommendations-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-h-[600px] overflow-y-auto pr-2">
+                <p class="text-gray-400 text-center col-span-full" id="initial-message">Enter a movie title to get recommendations.</p>
+            </div>
+        </section>
+
+        <section id="popular-movies-section" class="bg-gray-800 p-6 rounded-lg shadow-xl hidden">
+            <h2 class="text-2xl font-semibold text-indigo-300 mb-4">Popular Movies</h2>
+            <div id="popular-movies-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 max-h-[600px] overflow-y-auto pr-2">
+                <p class="text-gray-400 text-center col-span-full">Loading popular movies...</p>
+            </div>
+        </section>
+
+        <section id="tvshows-not-available-section" class="bg-gray-800 p-6 rounded-lg shadow-xl text-center hidden">
+            <h2 class="text-2xl font-semibold text-indigo-300 mb-4">TV Shows</h2>
+            <p class="text-gray-400 text-lg">TV show content is not available at this time. Please check back later!</p>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-900 p-4 text-center text-gray-500 text-sm mt-8">
+        &copy; 2025 Movie Recommender. All rights reserved.
+    </footer>
+
+    <div id="movie-details-modal" class="modal-overlay hidden">
+        <div class="modal-content w-full md:w-3/4 lg:w-1/2">
+            <button id="modal-close-button" class="modal-close-button">&times;</button>
+            <div class="flex flex-col md:flex-row gap-6">
+                <img id="modal-movie-poster" src="https://placehold.co/200x300/333/FFF?text=No+Poster" alt="Movie Poster" class="w-48 h-72 rounded-lg shadow-lg flex-shrink-0 object-cover mx-auto md:mx-0">
+                <div class="flex-grow text-center md:text-left">
+                    <h3 id="modal-movie-title" class="text-3xl font-bold text-indigo-200 mb-2"></h3>
+                    <p id="modal-movie-tagline" class="text-gray-400 text-md italic mb-4"></p>
+                    <p id="modal-movie-overview" class="text-gray-300 text-base leading-relaxed mb-4"></p>
+                    <div class="flex flex-wrap justify-center md:justify-start gap-3 mb-4">
+                        <span id="modal-movie-vote" class="bg-gray-700 text-gray-200 text-sm px-4 py-2 rounded-full flex items-center gap-1">
+                            <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.381-1.81.588-1.81h3.462a1 1 0 00.95-.69l1.07-3.292z"></path></svg>
+                            <span></span>
+                        </span>
+                        <span id="modal-movie-popularity" class="bg-gray-700 text-gray-200 text-sm px-4 py-2 rounded-full"></span>
+                        <span id="modal-movie-genres" class="bg-gray-700 text-gray-200 text-sm px-4 py-2 rounded-full"></span>
+                    </div>
+                    <p id="modal-movie-runtime" class="text-gray-400 text-sm mb-2"></p>
+                    <p id="modal-movie-release-date" class="text-gray-400 text-sm mb-2"></p>
+                    <p id="modal-movie-production-companies" class="text-gray-400 text-sm mb-2"></p>
+                    <p id="modal-movie-production-countries" class="text-gray-400 text-sm mb-2"></p>
+                    <p id="modal-movie-spoken-languages" class="text-gray-400 text-sm mb-2"></p>
+                    <button id="modal-watch-trailer-btn" class="mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:scale-105 hidden">
+                        Watch Trailer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const movieInput = document.getElementById('movie-title');
+        const movieSuggestionsDatalist = document.getElementById('movie-suggestions');
+        const getRecommendationsBtn = document.getElementById('get-recommendations');
+        const recommendationsList = document.getElementById('recommendations-list');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const initialMessage = document.getElementById('initial-message');
+        const movieDetailsOutput = document.getElementById('movie-details-output');
+        const moviePoster = document.getElementById('movie-poster');
+        const movieDetailTitle = document.getElementById('movie-detail-title');
+        const movieDetailTagline = document.getElementById('movie-detail-tagline');
+        const movieDetailOverview = document.getElementById('movie-detail-overview');
+        const movieDetailVote = document.querySelector('#movie-detail-vote span');
+        const movieDetailPopularity = document.getElementById('movie-detail-popularity');
+        const movieDetailGenres = document.getElementById('movie-detail-genres');
+
+        const heroSection = document.getElementById('hero-section');
+        const searchSection = document.getElementById('search-section');
+        const recommendationsOutput = document.getElementById('recommendations-output');
+        const popularMoviesSection = document.getElementById('popular-movies-section');
+        const popularMoviesList = document.getElementById('popular-movies-list');
+        const tvShowsNotAvailableSection = document.getElementById('tvshows-not-available-section');
+
+        const heroBannerImage = document.getElementById('hero-banner-image');
+        const heroBannerTitle = document.getElementById('hero-banner-title');
+        const heroBannerTagline = document.getElementById('hero-banner-tagline');
+
+        const navHome = document.getElementById('nav-home');
+        const navMovies = document.getElementById('nav-movies');
+        const navTvShows = document.getElementById('nav-tvshows');
+
+        const movieDetailsModal = document.getElementById('movie-details-modal');
+        const modalCloseButton = document.getElementById('modal-close-button');
+        const modalMoviePoster = document.getElementById('modal-movie-poster');
+        const modalMovieTitle = document.getElementById('modal-movie-title');
+        const modalMovieTagline = document.getElementById('modal-movie-tagline');
+        const modalMovieOverview = document.getElementById('modal-movie-overview');
+        const modalMovieVote = document.querySelector('#modal-movie-vote span');
+        const modalMoviePopularity = document.getElementById('modal-movie-popularity');
+        const modalMovieGenres = document.getElementById('modal-movie-genres');
+        const modalMovieRuntime = document.getElementById('modal-movie-runtime');
+        const modalMovieReleaseDate = document.getElementById('modal-movie-release-date');
+        const modalMovieProductionCompanies = document.getElementById('modal-movie-production-companies');
+        const modalMovieProductionCountries = document.getElementById('modal-movie-production-countries');
+        const modalMovieSpokenLanguages = document.getElementById('modal-movie-spoken-languages');
+        const modalWatchTrailerBtn = document.getElementById('modal-watch-trailer-btn');
+
+
+        const BASE_API_URL = 'http://127.0.0.1:5000'; 
+        const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500';
+        const TMDB_BACKDROP_BASE_URL = 'https://image.tmdb.org/t/p/w1280';
+
+
+        function displayMessage(message, type = 'info') {
+            const messageBox = document.createElement('div');
+            messageBox.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg text-white z-50`;
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-600');
+            } else {
+                messageBox.classList.add('bg-blue-600');
+            }
+            messageBox.textContent = message;
+            document.body.appendChild(messageBox);
+
+            setTimeout(() => {
+                messageBox.remove();
+            }, 3000);
+        }
+
+        function hideAllSections() {
+            heroSection.classList.add('hidden');
+            searchSection.classList.add('hidden');
+            movieDetailsOutput.classList.add('hidden');
+            recommendationsOutput.classList.add('hidden');
+            popularMoviesSection.classList.add('hidden');
+            tvShowsNotAvailableSection.classList.add('hidden');
+        }
+
+        async function fetchFeaturedMovie() {
+            try {
+                const response = await fetch(`${BASE_API_URL}/featured_movie`);
+                const data = await response.json();
+
+                if (response.ok && data.featured_movie) {
+                    const featured = data.featured_movie;
+                    if (featured.backdrop_path) {
+                        heroBannerImage.src = `${TMDB_BACKDROP_BASE_URL}${featured.backdrop_path}`;
+                        heroBannerImage.onerror = () => {
+                            heroBannerImage.src = 'https://placehold.co/1200x500/1e293b/a78bfa?text=Featured+Movie+Banner';
+                        };
+                    } else {
+                        heroBannerImage.src = 'https://placehold.co/1200x500/1e293b/a78bfa?text=Featured+Movie+Banner';
+                    }
+                    heroBannerTitle.textContent = featured.title || 'Discover Your Next Favorite Movie';
+                    heroBannerTagline.textContent = featured.tagline || 'Personalized recommendations and endless entertainment.';
+                } else {
+                    console.warn('Could not fetch featured movie:', data.message || 'Unknown error');
+                    heroBannerImage.src = 'https://placehold.co/1200x500/1e293b/a78bfa?text=Featured+Movie+Banner';
+                }
+            } catch (error) {
+                console.error('Error fetching featured movie for banner:', error);
+                heroBannerImage.src = 'https://placehold.co/1200x500/1e293b/a78bfa?text=Featured+Movie+Banner';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchFeaturedMovie();
+            setInterval(fetchFeaturedMovie, 10000);
+            showHomeContent();
+        });
+
+
+        let debounceTimer;
+        movieInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            const query = movieInput.value.trim();
+            if (query.length < 2) {
+                movieSuggestionsDatalist.innerHTML = '';
+                return;
+            }
+
+            debounceTimer = setTimeout(async () => {
+                try {
+                    const response = await fetch(`${BASE_API_URL}/movies?q=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+
+                    movieSuggestionsDatalist.innerHTML = '';
+                    if (response.ok && data.titles && data.titles.length > 0) {
+                        data.titles.forEach(title => {
+                            const option = document.createElement('option');
+                            option.value = title;
+                            movieSuggestionsDatalist.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Autocomplete fetch error:', error);
+                }
+            }, 300);
+        });
+
+        getRecommendationsBtn.addEventListener('click', async () => {
+            const movieTitle = movieInput.value.trim();
+            if (!movieTitle) {
+                displayMessage('Please enter a movie title!', 'error');
+                return;
+            }
+
+            hideAllSections();
+            searchSection.classList.remove('hidden'); 
+            recommendationsOutput.classList.remove('hidden'); 
+
+            initialMessage.classList.add('hidden');
+            recommendationsList.innerHTML = '';
+            movieDetailsOutput.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+
+            try {
+                const movieDetailsResponse = await fetch(`${BASE_API_URL}/movie_details/${encodeURIComponent(movieTitle)}`);
+                const movieDetailsData = await movieDetailsResponse.json();
+
+                if (movieDetailsResponse.ok && movieDetailsData.details) {
+                    const details = movieDetailsData.details;
+                    moviePoster.src = details.poster_path ? `${TMDB_IMAGE_BASE_URL}${details.poster_path}` : 'https://placehold.co/150x225/333/FFF?text=No+Poster';
+                    moviePoster.onerror = () => { moviePoster.src = 'https://placehold.co/150x225/333/FFF?text=No+Poster'; };
+                    movieDetailTitle.textContent = details.title || 'N/A';
+                    movieDetailTagline.textContent = details.tagline || '';
+                    movieDetailOverview.textContent = details.overview || 'No overview available.';
+                    movieDetailVote.textContent = details.vote_average ? `${details.vote_average.toFixed(1)}` : 'N/A';
+                    movieDetailPopularity.textContent = details.popularity ? `Popularity: ${details.popularity.toFixed(0)}` : 'Popularity: N/A';
+                    movieDetailGenres.textContent = details.genres && details.genres.length > 0 ? `Genres: ${details.genres.join(', ')}` : 'N/A';
+                    movieDetailsOutput.classList.remove('hidden');
+                } else {
+                    displayMessage(`Could not find details for "${movieTitle}".`, 'info');
+                    movieDetailsOutput.classList.add('hidden');
+                }
+
+                const recommendationsResponse = await fetch(`${BASE_API_URL}/recommend`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: movieTitle })
+                });
+
+                const recommendationsData = await recommendationsResponse.json();
+
+                if (recommendationsResponse.ok) {
+                    const recommendedMovies = recommendationsData.recommendations;
+                    if (recommendedMovies && recommendedMovies.length > 0) {
+                        renderMovieCards(recommendedMovies, recommendationsList);
+                    } else {
+                        recommendationsList.innerHTML = '<p class="text-gray-400 text-center col-span-full">No recommendations found for this movie or movie not in database. Please try a different title.</p>';
+                    }
+                } else {
+                    displayMessage(`Error getting recommendations: ${recommendationsData.error || recommendationsData.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                displayMessage('Could not connect to the recommendation service. Please ensure the backend is running and accessible.', 'error');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+
+        function renderMovieCards(movies, targetElement) {
+            targetElement.innerHTML = ''; 
+            movies.forEach(movie => {
+                const movieCard = document.createElement('div');
+                movieCard.className = 'movie-card bg-gray-700 rounded-lg shadow-md overflow-hidden relative transform hover:scale-105 transition-transform duration-200 cursor-pointer group';
+                movieCard.setAttribute('data-movie', encodeURIComponent(JSON.stringify(movie)));
+
+                movieCard.innerHTML = `
+                    <img src="${movie.poster_path ? `${TMDB_IMAGE_BASE_URL}${movie.poster_path}` : 'https://placehold.co/200x300/333/FFF?text=No+Poster'}"
+                         alt="${movie.title} Poster" class="w-full h-48 object-cover">
+                    <div class="p-4">
+                        <h3 class="text-lg font-bold text-indigo-200 truncate">${movie.title}</h3>
+                        <p class="text-gray-400 text-sm flex items-center gap-1 mt-1">
+                            <svg class="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.381-1.81.588-1.81h3.462a1 1 0 00.95-.69l1.07-3.292z"></path></svg>
+                            ${movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A'}
+                        </p>
+                        <p class="text-gray-300 text-xs mt-2 line-clamp-3">${movie.overview || 'No overview available.'}</p>
+                    </div>
+                    <div class="movie-card-overlay absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center p-4 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <h4 class="text-xl font-bold text-white mb-2">${movie.title}</h4>
+                        <p class="text-sm text-gray-300 line-clamp-4">${movie.overview || 'No overview available.'}</p>
+                        <button class="view-details-btn mt-4 bg-indigo-500 hover:bg-indigo-600 text-white text-sm px-4 py-2 rounded-full"
+                                data-movie='${encodeURIComponent(JSON.stringify(movie))}'>View Details</button>
+                    </div>
+                `;
+                movieCard.querySelector('img').onerror = (event) => {
+                    event.target.src = 'https://placehold.co/200x300/333/FFF?text=No+Poster';
+                };
+                targetElement.appendChild(movieCard);
+            });
+
+            targetElement.querySelectorAll('.view-details-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const encodedMovieData = event.target.dataset.movie;
+                    const movieData = JSON.parse(decodeURIComponent(encodedMovieData));
+                    openMovieDetailsModal(movieData);
+                    movieInput.value = movieData.title;
+                    getRecommendationsBtn.click();
+                });
+            });
+
+            targetElement.querySelectorAll('.movie-card').forEach(card => {
+                card.addEventListener('click', (event) => {
+                    const encodedMovieData = event.currentTarget.dataset.movie;
+                    const movieData = JSON.parse(decodeURIComponent(encodedMovieData));
+                    openMovieDetailsModal(movieData);
+                    movieInput.value = movieData.title;
+                    getRecommendationsBtn.click();
+                });
+            });
+        }
+
+
+        function openMovieDetailsModal(movie) {
+            console.log("Movie data for modal:", movie);
+            modalMoviePoster.src = movie.poster_path ? `${TMDB_IMAGE_BASE_URL}${movie.poster_path}` : 'https://placehold.co/200x300/333/FFF?text=No+Poster';
+            modalMoviePoster.onerror = () => { modalMoviePoster.src = 'https://placehold.co/200x300/333/FFF?text=No+Poster'; };
+            modalMovieTitle.textContent = movie.title || 'N/A';
+            modalMovieTagline.textContent = movie.tagline || '';
+            modalMovieOverview.textContent = movie.overview || 'No overview available.';
+            modalMovieVote.textContent = movie.vote_average ? `${movie.vote_average.toFixed(1)}` : 'N/A';
+            modalMoviePopularity.textContent = movie.popularity ? `Popularity: ${movie.popularity.toFixed(0)}` : 'Popularity: N/A';
+            modalMovieGenres.textContent = movie.genres && movie.genres.length > 0 ? `Genres: ${Array.isArray(movie.genres) ? movie.genres.join(', ') : movie.genres}` : 'N/A';
+
+            modalMovieRuntime.textContent = movie.runtime ? `Runtime: ${movie.runtime} minutes` : '';
+            modalMovieReleaseDate.textContent = movie.release_date ? `Release Date: ${movie.release_date}` : '';
+            modalMovieProductionCompanies.textContent = movie.production_companies ? `Production: ${Array.isArray(movie.production_companies) ? movie.production_companies.join(', ') : movie.production_companies}` : '';
+            modalMovieProductionCountries.textContent = movie.production_countries ? `Countries: ${Array.isArray(movie.production_countries) ? movie.production_countries.join(', ') : movie.production_countries}` : '';
+            modalMovieSpokenLanguages.textContent = movie.spoken_languages ? `Languages: ${Array.isArray(movie.spoken_languages) ? movie.spoken_languages.join(', ') : movie.spoken_languages}` : '';
+
+            if (movie.trailer_url) {
+                modalWatchTrailerBtn.onclick = () => window.open(movie.trailer_url, '_blank');
+                modalWatchTrailerBtn.classList.remove('hidden');
+            } else {
+                modalWatchTrailerBtn.classList.add('hidden');
+            }
+
+            movieDetailsModal.classList.remove('hidden');
+        }
+
+        modalCloseButton.addEventListener('click', () => {
+            movieDetailsModal.classList.add('hidden');
+        });
+
+        movieDetailsModal.addEventListener('click', (event) => {
+            if (event.target === movieDetailsModal) {
+                movieDetailsModal.classList.add('hidden');
+            }
+        });
+
+        function showHomeContent() {
+            hideAllSections();
+            heroSection.classList.remove('hidden');
+            searchSection.classList.remove('hidden');
+            recommendationsOutput.classList.remove('hidden'); 
+            initialMessage.classList.remove('hidden'); 
+            recommendationsList.innerHTML = ''; 
+            movieDetailsOutput.classList.add('hidden'); 
+            movieInput.value = ''; 
+        }
+
+        async function showPopularMovies() {
+            hideAllSections();
+            popularMoviesSection.classList.remove('hidden');
+            popularMoviesList.innerHTML = '<p class="text-gray-400 text-center col-span-full">Loading popular movies...</p>';
+
+            try {
+                const response = await fetch(`${BASE_API_URL}/movies/popular`);
+                const data = await response.json();
+
+                if (response.ok && data.movies && data.movies.length > 0) {
+                    renderMovieCards(data.movies, popularMoviesList);
+                } else {
+                    popularMoviesList.innerHTML = '<p class="text-gray-400 text-center col-span-full">No popular movies found.</p>';
+                }
+            } catch (error) {
+                console.error('Error fetching popular movies:', error);
+                popularMoviesList.innerHTML = '<p class="text-red-400 text-center col-span-full">Failed to load popular movies. Please try again later.</p>';
+            }
+        }
+
+        function showTvShowsNotAvailable() {
+            hideAllSections();
+            tvShowsNotAvailableSection.classList.remove('hidden');
+        }
+
+        navHome.addEventListener('click', (e) => {
+            e.preventDefault();
+            showHomeContent();
+        });
+
+        navMovies.addEventListener('click', (e) => {
+            e.preventDefault();
+            showPopularMovies();
+        });
+
+        navTvShows.addEventListener('click', (e) => {
+            e.preventDefault();
+            showTvShowsNotAvailable();
+        });
+
+    </script>
+</body>
+</html>
